@@ -21,8 +21,8 @@ export default function Header() {
                 href="/" 
                 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
               >
-                Genoma Study
-              </Link>
+          Genoma Study
+        </Link>
 
               {/* Menu Principal */}
               <div className="flex items-center space-x-6">

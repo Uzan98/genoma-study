@@ -78,9 +78,12 @@ export default function FlashcardsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
       >
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="bg-purple-100 dark:bg-purple-900/50 p-3 rounded-lg">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-2 border-purple-500/20 shadow-purple-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-purple-100/50 dark:bg-purple-900/20 p-2 rounded-lg">
               <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
@@ -88,11 +91,14 @@ export default function FlashcardsPage() {
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{totalCards}</h3>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-lg">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-2 border-blue-500/20 shadow-blue-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100/50 dark:bg-blue-900/20 p-2 rounded-lg">
               <Target className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
@@ -100,11 +106,14 @@ export default function FlashcardsPage() {
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{averageMastery}%</h3>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="bg-red-100 dark:bg-red-900/50 p-3 rounded-lg">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-2 border-red-500/20 shadow-red-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-red-100/50 dark:bg-red-900/20 p-2 rounded-lg">
               <Award className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
             <div>
@@ -112,21 +121,24 @@ export default function FlashcardsPage() {
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{totalWrongCards}</h3>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="bg-green-100 dark:bg-green-900/50 p-3 rounded-lg">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border-2 border-green-500/20 shadow-green-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="bg-green-100/50 dark:bg-green-900/20 p-2 rounded-lg">
               <Clock className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Último Estudo</p>
               <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                {lastStudyDate ? lastStudyDate.toLocaleDateString() : 'Nunca'}
+                {lastStudyDate ? lastStudyDate.toLocaleDateString('pt-BR') : 'Nunca'}
               </h3>
             </div>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
 
       {decks.length === 0 ? (

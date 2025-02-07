@@ -51,8 +51,11 @@ const calculateNextReview = (card: Card, quality: number): Partial<Card> => {
     else interval = Math.round(interval * easeFactor)
   }
 
+  // Calcula a próxima data de revisão
   const nextReview = new Date()
-  nextReview.setDate(nextReview.getDate() + interval)
+  if (quality >= 3) { // Só atualiza a data se o card foi respondido corretamente
+    nextReview.setDate(nextReview.getDate() + interval)
+  }
 
   return {
     interval,

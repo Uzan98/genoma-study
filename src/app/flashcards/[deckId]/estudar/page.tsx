@@ -160,14 +160,18 @@ export default function StudyPage({ params }: PageProps) {
       }))
     }
 
-    // Mostra a data da próxima revisão
-    const nextDate = new Date(currentCard.nextReview)
-    const formattedDate = nextDate.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    })
-    setNextReviewDate(formattedDate)
+    // Mostra a data da próxima revisão apenas se o card foi respondido corretamente
+    if (isCorrect) {
+      const nextDate = new Date(currentCard.nextReview)
+      const formattedDate = nextDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      })
+      setNextReviewDate(formattedDate)
+    } else {
+      setNextReviewDate(null)
+    }
 
     // Reseta o estado do card
     setIsFlipped(false)
@@ -299,8 +303,8 @@ export default function StudyPage({ params }: PageProps) {
         onClose={() => setShowHelpDialog(false)}
       />
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      {/* Header - Visível apenas em desktop */}
+      <div className="hidden lg:flex justify-between items-center mb-8">
         <div className="flex items-center gap-4">
           <Link href="/flashcards">
             <button className="flex items-center gap-2 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400">
@@ -325,10 +329,40 @@ export default function StudyPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Main Content */}
-      <div className="flex gap-8">
+      {/* Menu Inferior Mobile */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 z-50">
+        <div className="flex justify-between items-center">
+          <Link href="/flashcards">
+            <button className="flex flex-col items-center gap-1 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 text-sm">
+              <ArrowLeft className="w-5 h-5" />
+              <span>Voltar</span>
+            </button>
+          </Link>
+
+          <button 
+            onClick={() => setShowHelpDialog(true)}
+            className="flex flex-col items-center gap-1 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 text-sm"
+          >
+            <HelpCircle className="w-5 h-5" />
+            <span>Ajuda</span>
+          </button>
+
+          <div className="flex flex-col items-center gap-1 text-gray-600 dark:text-gray-300 text-sm">
+            <Clock className="w-5 h-5" />
+            <span>{formatTime(timer)}</span>
+          </div>
+
+          <div className="flex flex-col items-center gap-1 text-gray-600 dark:text-gray-300 text-sm">
+            <Target className="w-5 h-5" />
+            <span>{currentCardIndex + 1}/{cards.length}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Ajustado para ter padding inferior no mobile */}
+      <div className="flex flex-col lg:flex-row gap-8 pb-16 lg:pb-0">
         {/* History Panel */}
-        <div className="w-80">
+        <div className="hidden lg:block w-80">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg sticky top-8 max-h-[calc(100vh-8rem)] overflow-y-auto">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-6">
               Histórico da Sessão
@@ -371,6 +405,35 @@ export default function StudyPage({ params }: PageProps) {
 
         {/* Card Section */}
         <div className="flex-1">
+          {/* Mobile Stats */}
+          <div className="lg:hidden mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
+                    <span className="text-gray-700 dark:text-gray-300">Acertos</span>
+                  </div>
+                  <span className="font-medium text-green-500 dark:text-green-400">{stats.correct}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <X className="w-5 h-5 text-red-500 dark:text-red-400" />
+                    <span className="text-gray-700 dark:text-gray-300">Erros</span>
+                  </div>
+                  <span className="font-medium text-red-500 dark:text-red-400">{stats.incorrect}</span>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-gray-600 dark:text-gray-300">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  <span>Tempo:</span>
+                </div>
+                <span className="font-medium">{formatTime(timer)}</span>
+              </div>
+            </div>
+          </div>
+
           <AnimatePresence mode="wait">
             {!showStats ? (
               <motion.div
@@ -380,7 +443,7 @@ export default function StudyPage({ params }: PageProps) {
                 exit={{ opacity: 0 }}
               >
                 <div 
-                  className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg cursor-pointer min-h-[400px] relative"
+                  className="bg-white dark:bg-gray-800 rounded-xl p-4 md:p-8 shadow-lg cursor-pointer min-h-[300px] md:min-h-[400px] relative flex items-center justify-center"
                   onClick={handleCardFlip}
                   style={{ perspective: '1000px' }}
                 >
@@ -388,32 +451,32 @@ export default function StudyPage({ params }: PageProps) {
                     initial={false}
                     animate={{ rotateY: isFlipped ? 180 : 0 }}
                     transition={{ duration: 0.6 }}
-                    className="w-full h-full relative"
+                    className="w-full h-full"
                     style={{ transformStyle: 'preserve-3d' }}
                   >
                     {/* Frente do Card */}
                     <motion.div
-                      className="absolute w-full h-full flex items-center justify-center"
+                      className="absolute inset-0 flex items-center justify-center p-4 md:p-8"
                       style={{
                         backfaceVisibility: 'hidden',
                         WebkitBackfaceVisibility: 'hidden'
                       }}
                     >
-                      <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                      <h2 className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-white text-center">
                         {remainingCards[0]?.front || ''}
                       </h2>
                     </motion.div>
 
                     {/* Verso do Card */}
                     <motion.div
-                      className="absolute w-full h-full flex items-center justify-center"
+                      className="absolute inset-0 flex items-center justify-center p-4 md:p-8"
                       style={{
                         backfaceVisibility: 'hidden',
                         WebkitBackfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)'
                       }}
                     >
-                      <h2 className="text-2xl font-semibold text-gray-800 dark:text-white">
+                      <h2 className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-white text-center">
                         {remainingCards[0]?.back || ''}
                       </h2>
                     </motion.div>
@@ -424,33 +487,36 @@ export default function StudyPage({ params }: PageProps) {
                   <>
                     {/* Modo Estudo */}
                     {!studyComplete && (
-                      <div className="flex justify-center gap-4 mt-6">
+                      <div className="flex flex-col md:flex-row justify-center gap-2 md:gap-4 mt-6 mb-16 lg:mb-6">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAnswer(1)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+                          className="bg-red-500 hover:bg-red-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
                         >
                           <X className="w-5 h-5" />
-                          Muito Difícil
+                          <span className="hidden md:inline">Muito Difícil</span>
+                          <span className="md:hidden">Difícil</span>
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAnswer(3)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
                         >
                           <Clock className="w-5 h-5" />
-                          Com Esforço
+                          <span className="hidden md:inline">Com Esforço</span>
+                          <span className="md:hidden">Médio</span>
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAnswer(5)}
-                          className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg flex items-center gap-2"
+                          className="bg-green-500 hover:bg-green-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
                         >
                           <Check className="w-5 h-5" />
-                          Fácil
+                          <span className="hidden md:inline">Fácil</span>
+                          <span className="md:hidden">Fácil</span>
                         </motion.button>
                       </div>
                     )}
@@ -573,7 +639,7 @@ export default function StudyPage({ params }: PageProps) {
         </div>
 
         {/* Stats Panel */}
-        <div className="w-80">
+        <div className="hidden lg:block w-80">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg sticky top-8">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-6">
               Estatísticas da Sessão

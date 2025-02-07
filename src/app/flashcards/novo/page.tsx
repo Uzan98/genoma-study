@@ -196,8 +196,7 @@ resposta3
 Observações importantes:
 - Use uma barra (/) para separar pergunta e resposta
 - Use barra dupla (//) para separar diferentes cards
-- Não adicione barra dupla após o último card
-- Mantenha as perguntas e respostas objetivas e diretas</pre>
+- Não adicione barra dupla após o último card</pre>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(`Por favor, crie flashcards sobre [TEMA] no seguinte formato exato:

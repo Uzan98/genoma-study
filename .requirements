@@ -1,0 +1,52 @@
+📌 Requisitos do PWA Genoma
+🔹 Tecnologias
+Front-end: React.js + Next.js
+Estilização: Tailwind CSS 4
+Autenticação: Auth0
+Banco de Dados: Azure
+PWA: Suporte offline, instalação, service workers
+Hospedagem: Vercel / Azure
+🏠 Páginas e Funcionalidades
+📍 1. Home
+Dashboard interativo com progresso do usuário
+Recomendações personalizadas de estudo
+Acesso rápido aos Flashcards e Simulados
+Design moderno com animações suaves (Framer Motion ou GSAP)
+Dark mode
+🎴 2. Flashcards
+Criar, editar e revisar flashcards
+Com cronometro
+Estatisticas de erros e acertos
+Oportunidade de responder de novo no final as que errou até acertar, senão não termina. 
+feedback das que acertou e errou com porcentagem de acerto.
+oprtunidade de tentar de novo só com as que errou
+oportunidade de estudar o deck a qualquer momento
+
+📝 3. Simulados
+Simulados customizáveis por tema e dificuldade
+Temporizador integrado
+Correção automática e explicação das respostas
+Histórico de desempenho
+🚀 Extras e Interatividade
+Notificações push para lembretes de estudo
+Gamificação: Pontos e conquistas
+Modo offline com sincronização automática
+IA integrada para sugestões de estudo
+🎨 Prompt para UX/UI Design
+📌 Descrição:
+Crie um design para um PWA de estudos chamado Genoma, com um visual moderno, interativo e responsivo. O aplicativo deve ter três seções principais: Home, Flashcards e Simulados. O layout precisa ser fluido, minimalista e envolvente, priorizando acessibilidade e usabilidade.
+
+🎨 Cores: Roxo e tons de azul (conforme a imagem de referência).
+🖌 Tipografia: Moderna, clara e legível.
+📱 Componentes:
+
+Dashboard intuitivo com estatísticas
+Cards interativos com animações suaves
+Modo escuro e claro
+Design adaptável para mobile e desktop
+📢 Diferenciais:
+
+Use Tailwind CSS 4 para um design clean e responsivo
+Animações sutis (Framer Motion/GSAP)
+Foco na experiência do usuário (UX): Simplicidade, rapidez e interatividade
+💡 Objetivo: Criar uma interface que motive os usuários a estudar, tornando o aprendizado mais dinâmico e envolvente.

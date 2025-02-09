@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Brain, Book, Trophy, FlaskConical } from 'lucide-react'
+import { Sun, Moon, Brain, Calendar, Trophy, FlaskConical } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export default function Header() {
@@ -43,11 +43,11 @@ export default function Header() {
                 </Link>
                 
                 <Link 
-                  href="/materiais" 
+                  href="/agenda" 
                   className="flex items-center space-x-1 text-gray-700 dark:text-gray-200 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
                 >
-                  <Book className="w-4 h-4" />
-                  <span>Materiais</span>
+                  <Calendar className="w-4 h-4" />
+                  <span>Agenda</span>
                 </Link>
                 
                 <Link 
@@ -89,7 +89,7 @@ export default function Header() {
 
           <Link href="/flashcards">
             <div className="flex flex-col items-center gap-1">
-              <Book className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <Brain className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               <span className="text-xs text-gray-600 dark:text-gray-300">Flashcards</span>
             </div>
           </Link>
@@ -98,6 +98,13 @@ export default function Header() {
             <div className="flex flex-col items-center gap-1">
               <FlaskConical className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               <span className="text-xs text-gray-600 dark:text-gray-300">Simulados</span>
+            </div>
+          </Link>
+
+          <Link href="/agenda">
+            <div className="flex flex-col items-center gap-1">
+              <Calendar className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <span className="text-xs text-gray-600 dark:text-gray-300">Agenda</span>
             </div>
           </Link>
 

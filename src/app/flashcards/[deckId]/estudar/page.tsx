@@ -1,65 +1,34 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Clock, Check, X, RotateCcw, Calendar, HelpCircle, Target, Brain, Award } from 'lucide-react'
+import { ArrowLeft, Brain, Check, X, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useFlashcardsStore, Card } from '@/store/useFlashcardsStore'
-import Dialog from '@/components/ui/Dialog'
-import HelpDialog from '@/components/ui/HelpDialog'
-
-interface StudyStats {
-  correct: number
-  incorrect: number
-  timeSpent: number
-  wrongCards: Card[]
-}
-
-interface StudyCard extends Card {
-  sessionScore: number // Pontuação na sessão atual (quanto menor, mais precisa revisar)
-  reviewCount: number // Número de vezes que foi revisado na sessão
-}
-
-interface StudyHistory {
-  card: StudyCard
-  isCorrect: boolean
-  round: number
-}
+import { useFlashcardsStore } from '@/store/useFlashcardsStore'
+import { use } from 'react'
 
 interface PageProps {
   params: Promise<{ deckId: string }>
 }
 
-export default function StudyPage({ params }: PageProps) {
+export default function EstudoPage({ params }: PageProps) {
   const router = useRouter()
   const { deckId } = use(params)
-  const { getDeck, updateStudyProgress, updateCardProgress, getDueCards } = useFlashcardsStore()
+  const { getDeck, atualizarProgresso } = useFlashcardsStore()
   const deck = getDeck(deckId)
 
-  // Usa apenas os cards que precisam de revisão
-  const dueCards = getDueCards(deckId)
-  const [cards, setCards] = useState(dueCards)
+  const [cards, setCards] = useState(deck?.cards || [])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
-  const [timer, setTimer] = useState(0)
-  const [stats, setStats] = useState<StudyStats>({
-    correct: 0,
-    incorrect: 0,
-    timeSpent: 0,
-    wrongCards: []
-  })
   const [showStats, setShowStats] = useState(false)
-  const [studyComplete, setStudyComplete] = useState(false)
-  const [nextReviewDate, setNextReviewDate] = useState<string | null>(null)
-  const [showDialog, setShowDialog] = useState(false)
-  const [hasShownDialog, setHasShownDialog] = useState(false)
-  const [sessionCards, setSessionCards] = useState<StudyCard[]>([])
-  const [remainingCards, setRemainingCards] = useState<StudyCard[]>([])
-  const [round, setRound] = useState(1)
-  const maxRounds = 3 // Máximo de rodadas por sessão
-  const [showHelpDialog, setShowHelpDialog] = useState(false)
-  const [studyHistory, setStudyHistory] = useState<StudyHistory[]>([])
+  const [stats, setStats] = useState({
+    acertos: 0,
+    erros: 0,
+    tempoEstudo: 0,
+  })
+  const [timer, setTimer] = useState(0)
+  const [direction, setDirection] = useState(0)
 
   useEffect(() => {
     if (!deck) {
@@ -67,36 +36,30 @@ export default function StudyPage({ params }: PageProps) {
       return
     }
 
-    // Só mostra o diálogo na primeira vez e se não houver cards para estudar
-    if (dueCards.length === 0 && !hasShownDialog && remainingCards.length === 0) {
-      setShowDialog(true)
-      setHasShownDialog(true)
-    }
-  }, [deck, router, dueCards, hasShownDialog, remainingCards.length])
+    // Verifica se há cards específicos para estudar na URL
+    const searchParams = new URLSearchParams(window.location.search)
+    const selectedCardIds = searchParams.get('cards')?.split(',')
+
+    // Filtra os cards se houver seleção, senão usa todos
+    const cardsToStudy = selectedCardIds
+      ? deck.cards.filter(card => selectedCardIds.includes(card.id))
+      : deck.cards
+
+    // Embaralha os cards
+    const shuffledCards = [...cardsToStudy].sort(() => Math.random() - 0.5)
+    setCards(shuffledCards)
+  }, [deck, router])
 
   // Timer
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (!studyComplete) {
-        setTimer((prev) => prev + 1)
-      }
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [studyComplete])
+    if (showStats) return
 
-  // Inicializa os cards da sessão
-  useEffect(() => {
-    if (cards.length > 0) {
-      const initialSessionCards = cards.map(card => ({
-        ...card,
-        sessionScore: 0.5,
-        reviewCount: 0
-      }))
-      setSessionCards(initialSessionCards)
-      setRemainingCards(initialSessionCards)
-      setCurrentCardIndex(0)
-    }
-  }, [cards])
+    const interval = setInterval(() => {
+      setTimer(prev => prev + 1)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [showStats])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -105,632 +68,363 @@ export default function StudyPage({ params }: PageProps) {
   }
 
   const handleCardFlip = () => {
-    setIsFlipped(!isFlipped)
-  }
-
-  const handleAnswer = (quality: number) => {
-    if (remainingCards.length === 0) return
-
-    const currentCard = remainingCards[0]
-    const isCorrect = quality >= 3
-
-    // Adiciona ao histórico
-    setStudyHistory(prev => [...prev, {
-      card: currentCard,
-      isCorrect,
-      round
-    }])
-
-    // Atualiza o progresso do card no sistema de repetição espaçada
-    updateCardProgress(deckId, currentCard.id, quality)
-
-    // Atualiza a pontuação da sessão e o contador de revisões
-    const scoreChange = (() => {
-      switch (quality) {
-        case 1: return -0.3 // Muito Difícil
-        case 3: return 0.2  // Com Esforço
-        case 5: return 0.4  // Fácil
-        default: return 0
-      }
-    })()
-
-    const newSessionCards = sessionCards.map(card =>
-      card.id === currentCard.id
-        ? {
-            ...card,
-            sessionScore: Math.max(0, Math.min(1, card.sessionScore + scoreChange)),
-            reviewCount: card.reviewCount + 1
-          }
-        : card
-    )
-    setSessionCards(newSessionCards)
-
-    // Remove o card atual dos cards restantes
-    const newRemainingCards = remainingCards.slice(1)
-    setRemainingCards(newRemainingCards)
-
-    // Atualiza estatísticas
-    if (isCorrect) {
-      setStats(prev => ({ ...prev, correct: prev.correct + 1 }))
-    } else {
-      setStats(prev => ({
-        ...prev,
-        incorrect: prev.incorrect + 1,
-        wrongCards: [...prev.wrongCards, currentCard]
-      }))
-    }
-
-    // Mostra a data da próxima revisão apenas se o card foi respondido corretamente
-    if (isCorrect) {
-      const nextDate = new Date(currentCard.nextReview)
-      const formattedDate = nextDate.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-      })
-      setNextReviewDate(formattedDate)
-    } else {
-      setNextReviewDate(null)
-    }
-
-    // Reseta o estado do card
-    setIsFlipped(false)
-
-    // Verifica se precisa iniciar uma nova rodada
-    if (newRemainingCards.length === 0) {
-      if (round < maxRounds) {
-        // Prepara os cards para a próxima rodada
-        const sortedCards = [...newSessionCards].sort((a, b) => {
-          // Primeiro critério: pontuação da sessão (menor primeiro)
-          const scoreDiff = a.sessionScore - b.sessionScore
-          if (Math.abs(scoreDiff) > 0.1) return scoreDiff
-
-          // Segundo critério: número de revisões (menor primeiro)
-          return a.reviewCount - b.reviewCount
+    if (!showStats) {
+      setIsFlipped(!isFlipped)
+      // Scroll suave para os botões
+      setTimeout(() => {
+        window.scrollTo({
+          top: window.innerHeight * 0.8,
+          behavior: 'smooth'
         })
-
-        console.log('Round:', round, 'Max Rounds:', maxRounds)
-        console.log('Session scores:', sortedCards.map(c => ({ 
-          id: c.id, 
-          score: c.sessionScore,
-          reviews: c.reviewCount 
-        })))
-
-        // Inicia nova rodada com todos os cards, ordenados por prioridade
-        setRemainingCards(sortedCards)
-        setRound(round + 1)
-        console.log('Iniciando nova rodada:', round + 1)
-      } else {
-        // Finaliza o estudo após todas as rodadas
-        console.log('Finalizando estudo')
-        const finalStats = {
-          correct: stats.correct + (isCorrect ? 1 : 0),
-          incorrect: stats.incorrect + (isCorrect ? 0 : 1),
-          timeSpent: timer,
-          wrongCards: isCorrect ? stats.wrongCards : [...stats.wrongCards, currentCard]
-        }
-        setStats(finalStats)
-        
-        if (deck) {
-          updateStudyProgress(
-            deck.id,
-            finalStats.correct,
-            sessionCards.reduce((sum, card) => sum + card.reviewCount, 0),
-            finalStats.wrongCards
-          )
-        }
-
-        // Mostra as estatísticas apenas se houver cards errados para revisar
-        if (finalStats.wrongCards.length > 0) {
-          setShowStats(true)
-        } else {
-          setStudyComplete(true)
-        }
-      }
+      }, 300)
     }
   }
 
-  const restartWithWrongCards = () => {
-    if (stats.wrongCards.length > 0) {
-      const wrongCardsForStudy = stats.wrongCards.map(card => ({
-        ...card,
-        sessionScore: 0.5,
-        reviewCount: 0
-      }))
-      setCards(stats.wrongCards)
-      setSessionCards(wrongCardsForStudy)
-      setRemainingCards(wrongCardsForStudy)
-      setCurrentCardIndex(0)
-      setIsFlipped(false)
-      setShowStats(false)
-      setStudyComplete(false)
-      setStats({
-        correct: 0,
-        incorrect: 0,
-        timeSpent: 0,
-        wrongCards: []
-      })
-      setTimer(0)
-      setRound(1)
+  const handleAnswer = (acertou: boolean) => {
+    if (showStats) return
+
+    // Scroll suave de volta para o topo
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+
+    // Atualiza o progresso do card
+    const currentCard = cards[currentCardIndex]
+    atualizarProgresso(deckId, currentCard.id, acertou)
+
+    // Atualiza as estatísticas
+    setStats(prev => ({
+      ...prev,
+      acertos: prev.acertos + (acertou ? 1 : 0),
+      erros: prev.erros + (acertou ? 0 : 1),
+      tempoEstudo: timer,
+    }))
+
+    // Avança para o próximo card
+    if (currentCardIndex < cards.length - 1) {
+      setDirection(1)
+      setTimeout(() => {
+        setCurrentCardIndex(prev => prev + 1)
+        setIsFlipped(false)
+      }, 300)
+    } else {
+      setShowStats(true)
     }
   }
 
-  if (!deck) {
-    return null
+  const handleRestart = () => {
+    setCards(prev => [...prev].sort(() => Math.random() - 0.5))
+    setCurrentCardIndex(0)
+    setIsFlipped(false)
+    setShowStats(false)
+    setStats({
+      acertos: 0,
+      erros: 0,
+      tempoEstudo: 0,
+    })
+    setTimer(0)
   }
+
+  if (!deck) return null
+
+  const progressPercentage = ((currentCardIndex + 1) / cards.length) * 100
+
+  // Adiciona cálculos de estatísticas
+  const taxaAcertos = stats.acertos + stats.erros > 0
+    ? ((stats.acertos / (stats.acertos + stats.erros)) * 100).toFixed(1)
+    : '0.0'
+
+  const cardAtual = cards[currentCardIndex]
+  const taxaAcertosCard = cardAtual?.totalEstudos > 0
+    ? ((cardAtual.acertos / cardAtual.totalEstudos) * 100).toFixed(1)
+    : '0.0'
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <Dialog
-        isOpen={showDialog && remainingCards.length === 0}
-        onClose={() => {
-          setShowDialog(false)
-          router.push('/flashcards')
-        }}
-        title="Nenhum Card para Estudar"
-        description="Não há cards para estudar neste momento. Você pode visualizar todos os cards do deck ou voltar para a lista de decks."
-      >
-        <button
-          onClick={() => {
-            setShowDialog(false)
-            const initialCards = deck?.cards || []
-            const initialSessionCards = initialCards.map(card => ({
-              ...card,
-              sessionScore: 0.5,
-              reviewCount: 0
-            }))
-            setCards(initialCards)
-            setRemainingCards(initialSessionCards)
-            setSessionCards(initialSessionCards)
-          }}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg"
-        >
-          Visualizar Cards
-        </button>
-        <button
-          onClick={() => {
-            setShowDialog(false)
-            router.push('/flashcards')
-          }}
-          className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg"
-        >
-          Voltar para Decks
-        </button>
-      </Dialog>
-
-      <HelpDialog
-        isOpen={showHelpDialog}
-        onClose={() => setShowHelpDialog(false)}
-      />
-
-      {/* Header - Visível apenas em desktop */}
-      <div className="hidden lg:flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <Link href="/flashcards">
-            <button className="flex items-center gap-2 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400">
-              <ArrowLeft className="w-5 h-5" />
-              Voltar
-            </button>
-          </Link>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowHelpDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/40 transition-colors"
-          >
-            <HelpCircle className="w-5 h-5" />
-            <span>Como Funciona?</span>
-          </motion.button>
-        </div>
-        {dueCards.length === 0 && (
-          <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-            Modo Visualização
-          </span>
-        )}
-      </div>
-
-      {/* Menu Inferior Mobile */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2 z-50">
-        <div className="flex justify-between items-center">
-          <Link href="/flashcards">
-            <button className="flex flex-col items-center gap-1 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 text-sm">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Voltar</span>
-            </button>
-          </Link>
-
-          <button 
-            onClick={() => setShowHelpDialog(true)}
-            className="flex flex-col items-center gap-1 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 text-sm"
-          >
-            <HelpCircle className="w-5 h-5" />
-            <span>Ajuda</span>
-          </button>
-
-          <div className="flex flex-col items-center gap-1 text-gray-600 dark:text-gray-300 text-sm">
-            <Clock className="w-5 h-5" />
-            <span>{formatTime(timer)}</span>
-          </div>
-
-          <div className="flex flex-col items-center gap-1 text-gray-600 dark:text-gray-300 text-sm">
-            <Target className="w-5 h-5" />
-            <span>{currentCardIndex + 1}/{cards.length}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content - Ajustado para ter padding inferior no mobile */}
-      <div className="flex flex-col lg:flex-row gap-8 pb-16 lg:pb-0">
-        {/* History Panel */}
-        <div className="hidden lg:block w-80">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg sticky top-8 max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-6">
-              Histórico da Sessão
-            </h2>
-
-            {studyHistory.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400 text-center">
-                Nenhum card estudado ainda
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {studyHistory.map((item, index) => (
-                  <div
-                    key={`${item.card.id}-${index}`}
-                    className={`p-4 rounded-lg ${
-                      item.isCorrect 
-                        ? 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500'
-                        : 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Rodada {item.round}
-                      </span>
-                      {item.isCorrect ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <X className="w-4 h-4 text-red-500" />
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      {item.card.front}
-                    </p>
+    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-950 dark:via-purple-950 dark:to-gray-950 relative overflow-hidden">
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-12 gap-6">
+          {/* Painel Lateral Esquerdo */}
+          <div className="col-span-2">
+            <div className="sticky top-8 space-y-4">
+              {/* Estatísticas da Sessão */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl p-6 text-gray-900 dark:text-white border-2 border-purple-300 dark:border-purple-700 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4 text-purple-600 dark:text-purple-400">Sessão Atual</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Taxa de Acertos</p>
+                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{taxaAcertos}%</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Card Section */}
-        <div className="flex-1">
-          {/* Mobile Stats */}
-          <div className="lg:hidden mb-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
-                    <span className="text-gray-700 dark:text-gray-300">Acertos</span>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Tempo Total</p>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatTime(timer)}</p>
                   </div>
-                  <span className="font-medium text-green-500 dark:text-green-400">{stats.correct}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <X className="w-5 h-5 text-red-500 dark:text-red-400" />
-                    <span className="text-gray-700 dark:text-gray-300">Erros</span>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Cards Estudados</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{currentCardIndex + 1}/{cards.length}</p>
                   </div>
-                  <span className="font-medium text-red-500 dark:text-red-400">{stats.incorrect}</span>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between text-gray-600 dark:text-gray-300">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <span>Tempo:</span>
-                </div>
-                <span className="font-medium">{formatTime(timer)}</span>
+
+              {/* Dicas de Estudo */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl p-6 text-gray-900 dark:text-white border-2 border-blue-300 dark:border-blue-700 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4 text-purple-600 dark:text-purple-400">Dicas</h3>
+                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 dark:text-purple-400">•</span>
+                    Clique no card para ver a resposta
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 dark:text-purple-400">•</span>
+                    Seja honesto com suas respostas
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 dark:text-purple-400">•</span>
+                    Revise os erros ao final
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
 
-          <AnimatePresence mode="wait">
-            {!showStats ? (
-              <motion.div
-                key="card"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+          {/* Conteúdo Principal */}
+          <div className="col-span-8">
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-center mb-8">
+            <Link href="/flashcards">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400"
               >
-                <div 
-                  className="bg-white dark:bg-gray-800 rounded-xl p-4 md:p-8 shadow-lg cursor-pointer min-h-[300px] md:min-h-[400px] relative flex items-center justify-center"
-                  onClick={handleCardFlip}
-                  style={{ perspective: '1000px' }}
-                >
+                <ArrowLeft className="w-5 h-5" />
+                Voltar
+              </motion.button>
+            </Link>
+            {!showStats && (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm">
+                  <Brain className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{formatTime(timer)}</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-gray-800/50 rounded-xl backdrop-blur-sm">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {currentCardIndex + 1}/{cards.length}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Título do Deck */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 mb-4">
+              {deck.titulo}
+            </h1>
+            {!showStats && (
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
+                <motion.div
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercentage}%` }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Área de Estudo */}
+          {!showStats ? (
+            <div className="space-y-8">
+              {/* Card */}
+              <div className="relative perspective-[1000px] h-[400px]">
+                <AnimatePresence mode="wait">
                   <motion.div
-                    initial={false}
-                    animate={{ rotateY: isFlipped ? 180 : 0 }}
+                    key={currentCardIndex}
+                    initial={{ 
+                      rotateY: direction === 1 ? -90 : 90,
+                      opacity: 0 
+                    }}
+                    animate={{ 
+                      rotateY: isFlipped ? 180 : 0,
+                      opacity: 1
+                    }}
+                    exit={{ 
+                      rotateY: direction === 1 ? 90 : -90,
+                      opacity: 0
+                    }}
                     transition={{ duration: 0.6 }}
-                    className="w-full h-full"
+                    className="w-full h-full cursor-pointer"
+                    onClick={handleCardFlip}
                     style={{ transformStyle: 'preserve-3d' }}
                   >
                     {/* Frente do Card */}
-                    <motion.div
-                      className="absolute inset-0 flex items-center justify-center p-4 md:p-8"
-                      style={{
-                        backfaceVisibility: 'hidden',
-                        WebkitBackfaceVisibility: 'hidden'
-                      }}
+                    <div
+                      className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex items-center justify-center backface-hidden transform-gpu"
+                      style={{ backfaceVisibility: 'hidden' }}
                     >
-                      <h2 className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-white text-center">
-                        {remainingCards[0]?.front || ''}
-                      </h2>
-                    </motion.div>
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <motion.p
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                          className="text-2xl text-gray-900 dark:text-white text-center font-medium"
+                        >
+                          {cards[currentCardIndex]?.front}
+                        </motion.p>
+                        <motion.div
+                          className="absolute bottom-0 left-1/2 -translate-x-1/2 text-gray-400 dark:text-gray-500"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.5 }}
+                        >
+                          Clique para virar
+                        </motion.div>
+                      </div>
+                    </div>
 
                     {/* Verso do Card */}
-                    <motion.div
-                      className="absolute inset-0 flex items-center justify-center p-4 md:p-8"
+                    <div
+                      className="absolute inset-0 w-full h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 flex items-center justify-center backface-hidden transform-gpu"
                       style={{
                         backfaceVisibility: 'hidden',
-                        WebkitBackfaceVisibility: 'hidden',
                         transform: 'rotateY(180deg)'
                       }}
                     >
-                      <h2 className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-white text-center">
-                        {remainingCards[0]?.back || ''}
-                      </h2>
-                    </motion.div>
-                  </motion.div>
-                </div>
-
-                {isFlipped && (
-                  <>
-                    {/* Modo Estudo */}
-                    {!studyComplete && (
-                      <div className="flex flex-col md:flex-row justify-center gap-2 md:gap-4 mt-6 mb-16 lg:mb-6">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleAnswer(1)}
-                          className="bg-red-500 hover:bg-red-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
-                        >
-                          <X className="w-5 h-5" />
-                          <span className="hidden md:inline">Muito Difícil</span>
-                          <span className="md:hidden">Difícil</span>
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleAnswer(3)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
-                        >
-                          <Clock className="w-5 h-5" />
-                          <span className="hidden md:inline">Com Esforço</span>
-                          <span className="md:hidden">Médio</span>
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleAnswer(5)}
-                          className="bg-green-500 hover:bg-green-600 text-white px-4 md:px-6 py-3 rounded-lg flex items-center justify-center gap-2"
-                        >
-                          <Check className="w-5 h-5" />
-                          <span className="hidden md:inline">Fácil</span>
-                          <span className="md:hidden">Fácil</span>
-                        </motion.button>
-                      </div>
-                    )}
-
-                    {/* Modo Visualização */}
-                    {studyComplete && (
-                      <div className="flex justify-center gap-4 mt-6">
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setIsFlipped(false)
-                            if (currentCardIndex < cards.length - 1) {
-                              setCurrentCardIndex(prev => prev + 1)
-                            } else {
-                              router.push('/flashcards')
-                            }
-                          }}
-                          className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg flex items-center gap-2"
-                        >
-                          {currentCardIndex < cards.length - 1 ? (
-                            <>
-                              <ArrowLeft className="w-5 h-5 rotate-180" />
-                              Próximo Card
-                            </>
-                          ) : (
-                            <>
-                              <ArrowLeft className="w-5 h-5" />
-                              Finalizar
-                            </>
-                          )}
-                        </motion.button>
-                      </div>
-                    )}
-
-                    {nextReviewDate && !studyComplete && (
-                      <motion.div
+                      <motion.p
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 text-center text-gray-600 dark:text-gray-300 flex items-center justify-center gap-2"
+                        transition={{ delay: 0.3 }}
+                        className="text-2xl text-gray-900 dark:text-white text-center font-medium"
                       >
-                        <Calendar className="w-5 h-5" />
-                        <span>Próxima revisão: {nextReviewDate}</span>
-                      </motion.div>
-                    )}
-                  </>
-                )}
-
-                <div className="mt-6 text-center text-gray-600 dark:text-gray-300">
-                  Card {cards.length - remainingCards.length + 1} de {cards.length}
-                  {round > 1 && <span className="ml-2">(Rodada {round})</span>}
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="stats"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg"
-              >
-                <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-6 text-center">
-                  Resultado do Estudo
-                </h2>
-                
-                <div className="grid grid-cols-2 gap-6 mb-8">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-green-500 mb-2">
-                      {stats.correct}
+                        {cards[currentCardIndex]?.back}
+                      </motion.p>
                     </div>
-                    <div className="text-gray-600 dark:text-gray-300">Acertos</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-red-500 mb-2">
-                      {stats.incorrect}
-                    </div>
-                    <div className="text-gray-600 dark:text-gray-300">Erros</div>
-                  </div>
-                </div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
 
-                <div className="text-center mb-8">
-                  <div className="text-2xl font-semibold text-purple-600 dark:text-purple-400 mb-2">
-                    {Math.round((stats.correct / cards.length) * 100)}%
-                  </div>
-                  <div className="text-gray-600 dark:text-gray-300">
-                    Taxa de Acerto
-                  </div>
-                </div>
-
-                <div className="text-center mb-8">
-                  <div className="text-xl text-gray-600 dark:text-gray-300">
-                    Tempo Total: {formatTime(stats.timeSpent)}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={restartWithWrongCards}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2"
+              {/* Botões de Resposta */}
+              <AnimatePresence>
+                {isFlipped && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="flex justify-center gap-4"
                   >
-                    <RotateCcw className="w-5 h-5" />
-                    Revisar Cards Errados ({stats.wrongCards.length})
-                  </motion.button>
-                  
-                  <Link href="/flashcards" className="w-full">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleAnswer(false)}
+                      className="px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
                     >
-                      Finalizar
+                      <X className="w-5 h-5" />
+                      Errei
                     </motion.button>
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Stats Panel */}
-        <div className="hidden lg:block w-80">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg sticky top-8">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-6">
-              Estatísticas da Sessão
-            </h2>
-
-            {/* Round Info */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between text-gray-600 dark:text-gray-300 mb-2">
-                <span>Rodada Atual</span>
-                <span className="font-medium">{round}/{maxRounds}</span>
-              </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleAnswer(true)}
+                      className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                    >
+                      <Check className="w-5 h-5" />
+                      Acertei
+                    </motion.button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
+          ) : (
+            /* Estatísticas */
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg backdrop-blur-sm bg-white/50 dark:bg-gray-800/50"
+            >
+              <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400 mb-8 text-center">
+                Resultado do Estudo
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white dark:bg-gray-700 rounded-xl p-6 shadow-md text-center"
+                >
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    Acertos
+                  </p>
+                  <p className="text-4xl font-bold text-green-600 dark:text-green-400">
+                    {stats.acertos}
+                  </p>
+                </motion.div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white dark:bg-gray-700 rounded-xl p-6 shadow-md text-center"
+                >
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    Erros
+                  </p>
+                  <p className="text-4xl font-bold text-red-600 dark:text-red-400">
+                    {stats.erros}
+                  </p>
+                </motion.div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white dark:bg-gray-700 rounded-xl p-6 shadow-md text-center"
+                >
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    Tempo de Estudo
+                  </p>
+                  <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">
+                    {formatTime(stats.tempoEstudo)}
+                  </p>
+                </motion.div>
+              </div>
+              <div className="flex justify-center">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRestart}
+                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  Estudar Novamente
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+          </div>
 
-            {/* Timer */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between text-gray-600 dark:text-gray-300 mb-2">
-                <span>Tempo de Estudo</span>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <span className="font-medium">{formatTime(timer)}</span>
+          {/* Painel Lateral Direito */}
+          <div className="col-span-2">
+            <div className="sticky top-8 space-y-4">
+              {/* Estatísticas do Card Atual */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl p-6 text-gray-900 dark:text-white border-2 border-purple-300 dark:border-purple-700 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4 text-purple-600 dark:text-purple-400">Card Atual</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Taxa de Acertos</p>
+                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{taxaAcertosCard}%</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Total de Estudos</p>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{cardAtual?.totalEstudos || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Último Estudo</p>
+                    <p className="text-lg font-medium text-green-600 dark:text-green-400">
+                      {cardAtual?.ultimoEstudo 
+                        ? new Date(cardAtual.ultimoEstudo).toLocaleDateString('pt-BR')
+                        : 'Nunca estudado'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Progress */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between text-gray-600 dark:text-gray-300 mb-2">
-                <span>Progresso</span>
-                <span className="font-medium">{currentCardIndex + 1}/{cards.length}</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-purple-500"
-                  style={{ width: `${((currentCardIndex + 1) / cards.length) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Acertos</span>
-                </div>
-                <span className="font-medium text-green-500 dark:text-green-400">{stats.correct}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <X className="w-5 h-5 text-red-500 dark:text-red-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Erros</span>
-                </div>
-                <span className="font-medium text-red-500 dark:text-red-400">{stats.incorrect}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-purple-500 dark:text-purple-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Taxa de Acerto</span>
-              </div>
-                <span className="font-medium text-purple-500 dark:text-purple-400">
-                  {stats.correct + stats.incorrect > 0
-                    ? Math.round((stats.correct / (stats.correct + stats.incorrect)) * 100)
-                    : 0}%
-                </span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <RotateCcw className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Para Revisar</span>
-                </div>
-                <span className="font-medium text-yellow-500 dark:text-yellow-400">{stats.wrongCards.length}</span>
-              </div>
-            </div>
-
-            {/* Additional Stats */}
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-4">
-              <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Cards Restantes</span>
-                </div>
-                <span className="font-medium text-blue-500 dark:text-blue-400">{remainingCards.length}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
-                  <span className="text-gray-700 dark:text-gray-300">Total de Revisões</span>
-              </div>
-                <span className="font-medium text-indigo-500 dark:text-indigo-400">
-                  {sessionCards.reduce((sum, card) => sum + card.reviewCount, 0)}
-                </span>
               </div>
             </div>
           </div>
